@@ -1,0 +1,96 @@
+name: Deploy Azure Function App
+
+on:
+  push:
+    branches:
+      - main  # Set to your default branch
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest  
+    env:
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT }}
+      AZURE_FUNCTION_APP: ${{ vars.AZURE_FUNCTION_APP }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Azure CLI
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Install Azure Functions Core Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install azure-functions-core-tools-4
+        sudo apt-get install gettext
+    
+    - name: Download environment variables
+      uses: actions/download-artifact@v2
+      with:
+        name: env-vars
+      id: download-env
+      continue-on-error: true
+    
+    - name: Check if env-vars were downloaded
+      id: check-env
+      run: |
+        if [ -f "env_vars.txt" ]; then
+          echo "Env vars found, setting up..."
+          source env_vars.txt
+          echo "ENV_VARS_DOWNLOADED=true" >> $GITHUB_ENV
+        else
+          echo "Env vars not found, setting defaults..."
+          echo "ENV_VARS_DOWNLOADED=false" >> $GITHUB_ENV
+          # Set up default environment variables here
+        fi
+    
+    - name: Conditional step based on env-vars availability
+      if: env.ENV_VARS_DOWNLOADED == 'true'
+      run: |
+        echo "Running steps with downloaded env vars..."
+        source env_vars.txt
+    
+    - name: Alternative step if env-vars were not downloaded
+      if: env.ENV_VARS_DOWNLOADED == 'false'
+      run: |
+        echo "Running steps with default env vars..."
+
+    - name: Install Bicep CLI
+      run: |
+        az bicep install
+
+    - name: Deploy Infrastructure
+      id: deploy_infra      
+      run: |        
+        echo "Deploying infrastructure..."
+        cd infra        
+        PARAM_FILE="main.parameters.json"
+        TEMP_PARAM_FILE="temp.parameters.json"
+        envsubst < $PARAM_FILE > $TEMP_PARAM_FILE        
+        cd ..        
+        az deployment sub create --location ${{ env.AZURE_LOCATION }} --template-file ./infra/main.bicep --parameters ./infra/temp.parameters.json --query "properties.outputs" > deployment_output.json
+
+    - name: Save Outputs to env_vars.txt
+      run: |
+        echo "Saving outputs to env_vars.txt..."
+        jq -r 'to_entries | .[] | "\(.key | sub("azurE_"; "AZURE_"))=\(.value.value)"' deployment_output.json > env_vars.txt
+        cat env_vars.txt
+
+    - name: Deploy Azure Function App      
+      run: |        
+        echo "Deploying Azure Function App..."                
+        AZURE_FUNCTION_APP=$(grep 'AZURE_FUNCTION_APP' env_vars.txt | cut -d '=' -f 2)
+        echo "AZURE_FUNCTION_APP: $AZURE_FUNCTION_APP"     
+        cd src/App
+        func azure functionapp publish $AZURE_FUNCTION_APP --language --dotnet-isolated
+        cd ../..
+
+    - name: Store environment variables
+      uses: actions/upload-artifact@v2
+      with:
+        name: env-vars
+        path: env_vars.txt

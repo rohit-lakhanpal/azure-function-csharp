@@ -1,0 +1,54 @@
+name: azure-functions-csharp
+metadata:
+  templateName: azure-functions-csharp
+  templateVersion: 0.1.0
+  templateDescription: Deploys an Azure Functions project with a storage account.
+
+infra:
+  bicep:
+    file: ./infra/main.bicep
+    parameters: ./infra/main.parameters.json
+  
+pipeline:
+  variables:
+    - AZURE_FUNCTION_APP
+    - AZURE_RESOURCE_GROUP
+    - AZURE_STORAGE_ACCOUNT
+  steps:
+    windows:
+      shell: pwsh
+      run: |
+        cd src/App
+        func azure functionapp publish $env:AZURE_FUNCTION_APP
+      interactive: false
+      continueOnError: false
+    posix:
+      shell: sh
+      run: |
+        cd src/App
+        func azure functionapp publish $AZURE_FUNCTION_APP
+      interactive: false
+      continueOnError: false
+
+hooks:  
+  predeploy:
+    windows:
+      shell: pwsh
+      run: |
+        cd src/App
+        Start-Sleep -Seconds 30
+        dotnet clean        
+      continueOnError: false
+      interactive: false
+    posix:
+      shell: sh
+      run: |
+        cd src/App
+        rm -rf bin obj
+        dotnet build
+        sleep 30
+      continueOnError: false
+      interactive: false
+    
+    
+
