@@ -2,7 +2,11 @@
 
 You need to create GitHub Secrets to securely store your Azure credentials and other sensitive information. 
 
-Go to your GitHub repository's Settings > Secrets and create the following **secrets**:
+## Setup Actions secrets and variables 
+
+### Action secrets:
+
+Go to your GitHub repository's Settings > Security > Secrets and variables > Actions and create the following **Secrets** (Repository secrets):
 
 * `AZURE_CREDENTIALS`: Your Azure service principal credentials in JSON format.
     To generate the Azure service principal credentials, you can use the Azure CLI:
@@ -32,6 +36,11 @@ Go to your GitHub repository's Settings > Secrets and create the following **sec
         "managementEndpointUrl": "https://management.core.windows.net/"
     }
     ```
+
+### Action variables:
+
+Go to your GitHub repository's Settings > Security > Secrets and variables > Actions and create the following **Variables** (Repository variables):
+
 * `AZURE_ENV_NAME`: The environment name. (e.g. `dev`, `staging`, `production`)
 * `AZURE_LOCATION`: The Azure region for your resources. (e.g. `eastus`, `australiaeast`. Use `az account list-locations -o table --query "[].name"` to list all available regions.)
 * `AZURE_RESOURCE_GROUP`, `AZURE_STORAGE_ACCOUNT`, `AZURE_FUNCTION_APP`: These will be dynamically set during the deployment process but if you want custom values, feel free to set them too as environment variables.
